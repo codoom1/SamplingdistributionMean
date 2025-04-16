@@ -33,6 +33,57 @@ const observedSE = document.getElementById('observed-se');
 // Chart instances
 let histogramChartInstance;
 
+// Update displayed values
+numSamplesInput.addEventListener('input', () => {
+    numSamplesValue.textContent = numSamplesInput.value;
+    numSamplesText.textContent = numSamplesInput.value;
+});
+
+sampleSizeInput.addEventListener('input', () => {
+    sampleSizeText.textContent = sampleSizeInput.value;
+    updateStatistics();
+});
+
+populationMeanInput.addEventListener('input', updateStatistics);
+populationSDInput.addEventListener('input', updateStatistics);
+
+// Handle context change
+populationContextSelect.addEventListener('change', updateContext);
+
+function updateContext() {
+    const selectedContext = populationContextSelect.value;
+    const context = contexts[selectedContext];
+    
+    // Update descriptions
+    populationDescription.textContent = context.description;
+    contextDescription.textContent = context.variable;
+    variableDescription.textContent = context.variable;
+    
+    // Update units
+    meanUnits.textContent = context.units;
+    sdUnits.textContent = context.units;
+    statsMeanUnits.textContent = context.units;
+    statsSDUnits.textContent = context.units;
+    statsSEUnits.textContent = context.units;
+    statsObservedMeanUnits.textContent = context.units;
+    statsObservedSEUnits.textContent = context.units;
+    
+    // Update input ranges
+    populationMeanInput.min = context.minMean;
+    populationMeanInput.max = context.maxMean;
+    populationMeanInput.value = context.defaultMean;
+    
+    populationSDInput.min = context.minSD;
+    populationSDInput.max = context.maxSD;
+    populationSDInput.value = context.defaultSD;
+    
+    // Update statistics
+    updateStatistics();
+    
+    // Run simulation with new context
+    runSimulation();
+}
+
 // Context definitions
 const contexts = {
     'test-scores': {
@@ -92,66 +143,10 @@ const contexts = {
     }
 };
 
-// Update displayed values
-numSamplesInput.addEventListener('input', () => {
-    numSamplesValue.textContent = numSamplesInput.value;
-    numSamplesText.textContent = numSamplesInput.value;
-});
-
-sampleSizeInput.addEventListener('input', () => {
-    sampleSizeText.textContent = sampleSizeInput.value;
-    updateStatistics();
-});
-
-populationMeanInput.addEventListener('input', updateStatistics);
-populationSDInput.addEventListener('input', updateStatistics);
-
-// Handle context change
-populationContextSelect.addEventListener('change', updateContext);
-
-function updateContext() {
-    const selectedContext = populationContextSelect.value;
-    const context = contexts[selectedContext];
-    
-    // Update descriptions
-    populationDescription.textContent = context.description;
-    contextDescription.textContent = context.variable;
-    variableDescription.textContent = context.variable;
-    
-    // Update units
-    meanUnits.textContent = context.units;
-    sdUnits.textContent = context.units;
-    statsMeanUnits.textContent = context.units;
-    statsSDUnits.textContent = context.units;
-    statsSEUnits.textContent = context.units;
-    statsObservedMeanUnits.textContent = context.units;
-    statsObservedSEUnits.textContent = context.units;
-    
-    // Update input ranges
-    populationMeanInput.min = context.minMean;
-    populationMeanInput.max = context.maxMean;
-    populationMeanInput.value = context.defaultMean;
-    
-    populationSDInput.min = context.minSD;
-    populationSDInput.max = context.maxSD;
-    populationSDInput.value = context.defaultSD;
-    
-    // Update statistics
-    updateStatistics();
-    
-    // Run simulation with new context
-    runSimulation();
-}
-
 // Initialize the simulation
 function init() {
-    updateContext(); // Initialize with default context
     updateStatistics();
     runSimulation();
-    
-    // Update text elements
-    sampleSizeText.textContent = sampleSizeInput.value;
-    numSamplesText.textContent = numSamplesInput.value;
     
     // Event listeners
     runSimulationBtn.addEventListener('click', runSimulation);
@@ -287,11 +282,11 @@ function runSimulation() {
     }
     
     // Create or update the histogram chart
-    updateHistogramChart(histogram, curvePoints);
+    updateHistogramChart(histogram, curvePoints, populationMean, populationSD, sampleSize, mean, stdDev);
 }
 
 // Update histogram chart
-function updateHistogramChart(histogram, curvePoints) {
+function updateHistogramChart(histogram, curvePoints, populationMean, populationSD, sampleSize, observedMean, observedStdDev) {
     if (histogramChartInstance) {
         histogramChartInstance.destroy();
     }
@@ -301,6 +296,20 @@ function updateHistogramChart(histogram, curvePoints) {
         x: center,
         y: histogram.bins[i]
     }));
+    
+    // Get context for drawing formula
+    const ctx = histogramChart.getContext('2d');
+    const units = meanUnits.textContent || '';
+    
+    // Formula text values - include both theoretical and observed
+    const meanFormula = `μₓ̄ = μ = ${populationMean} ${units}`;
+    const sdFormula = `σₓ̄ = σ/√n = ${(populationSD / Math.sqrt(sampleSize)).toFixed(2)} ${units}`;
+    const observedMeanText = `Observed x̄ = ${observedMean.toFixed(2)} ${units}`;
+    const observedSdText = `Observed s = ${observedStdDev.toFixed(2)} ${units}`;
+    
+    // Define colors for formulas
+    const theoreticalColor = 'rgb(220, 53, 69)'; // Red (matches the curve)
+    const observedColor = 'rgb(0, 123, 255)';    // Blue (matches the histogram)
     
     histogramChartInstance = new Chart(histogramChart, {
         type: 'scatter',
@@ -363,7 +372,47 @@ function updateHistogramChart(histogram, curvePoints) {
                     text: 'Sampling Distribution of the Mean'
                 }
             }
-        }
+        },
+        plugins: [{
+            id: 'customFormulas',
+            afterDraw: function(chart) {
+                const ctx = chart.ctx;
+                const chartArea = chart.chartArea;
+                
+                // Create a semi-transparent background for the formulas
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.fillRect(
+                    chartArea.right - 280, 
+                    chartArea.top + 10, 
+                    270, 
+                    140
+                );
+                
+                // Set font style - bigger size
+                ctx.font = 'bold 18px Arial';
+                ctx.textAlign = 'left';
+                
+                // Calculate position for text (right side)
+                const xPos = chartArea.right - 260;
+                let yPos = chartArea.top + 40;
+                const lineHeight = 30;
+                
+                // Draw theoretical formulas in red
+                ctx.fillStyle = theoreticalColor;
+                ctx.fillText(meanFormula, xPos, yPos);
+                yPos += lineHeight;
+                ctx.fillText(sdFormula, xPos, yPos);
+                
+                // Add a small gap
+                yPos += lineHeight/2;
+                
+                // Draw observed values in blue
+                ctx.fillStyle = observedColor;
+                ctx.fillText(observedMeanText, xPos, yPos + lineHeight/2);
+                yPos += lineHeight;
+                ctx.fillText(observedSdText, xPos, yPos + lineHeight/2);
+            }
+        }]
     });
 }
 
