@@ -119,9 +119,20 @@ function recreateFullscreenChart() {
         }));
         
         // Calculate theoretical PDF curve points
-        const range = 4 * populationSD;
-        const min = populationMean - range;
-        const max = populationMean + range;
+        // Adjust range based on distribution type
+        let range, min, max;
+        
+        if (distributionType === 'exponential') {
+            // For exponential, extend the range to show the tail
+            range = 3 * populationMean;
+            min = 0; // Exponential starts at 0
+            max = range;
+        } else {
+            range = 4 * populationSD;
+            min = populationMean - range;
+            max = populationMean + range;
+        }
+        
         const step = range / 200;
         
         const pdfCurvePoints = [];
@@ -131,6 +142,8 @@ function recreateFullscreenChart() {
                 y = normalPDF(x, populationMean, populationSD);
             } else if (distributionType === 'uniform') {
                 y = uniformPDF(x, populationMean, populationSD);
+            } else if (distributionType === 'exponential') {
+                y = exponentialPDF(x, populationMean, populationSD);
             } else {
                 y = normalPDF(x, populationMean, populationSD);
             }
@@ -150,6 +163,9 @@ function recreateFullscreenChart() {
         } else if (distributionType === 'uniform') {
             title = 'Uniform Population Distribution';
             curveLabel = 'Uniform Distribution';
+        } else if (distributionType === 'exponential') {
+            title = 'Exponential Population Distribution (Skewed)';
+            curveLabel = 'Exponential Distribution';
         }
         
         // Define colors
@@ -196,6 +212,8 @@ function recreateFullscreenChart() {
                                 size: 16
                             }
                         },
+                        // Force minimum to 0 for exponential distribution
+                        min: distributionType === 'exponential' ? 0 : undefined,
                         ticks: {
                             font: {
                                 size: 14
@@ -264,7 +282,28 @@ function recreateFullscreenChart() {
         
         // Calculate normal distribution curve points
         const theoreticalMean = populationMean;
-        const theoreticalStdDev = populationSD / Math.sqrt(sampleSize);
+        
+        // Compute the theoretical standard error based on the distribution type
+        // According to CLT, the standard error is σ/√n where σ is the population standard deviation
+        let theoreticalStdDev;
+        
+        if (distributionType === 'exponential') {
+            // For exponential distribution with parameter λ:
+            // Population mean = 1/λ
+            // Population variance = 1/λ²
+            // Population SD = 1/λ = mean
+            // Therefore standard error = mean/√n
+            theoreticalStdDev = populationMean / Math.sqrt(sampleSize);
+        } else if (distributionType === 'uniform') {
+            // For uniform distribution on [a,b]:
+            // Population SD = (b-a)/√12 = populationSD
+            // Standard error = populationSD/√n
+            theoreticalStdDev = populationSD / Math.sqrt(sampleSize);
+        } else {
+            // For normal distribution:
+            // Standard error is simply populationSD/√n
+            theoreticalStdDev = populationSD / Math.sqrt(sampleSize);
+        }
         
         const range = 4 * theoreticalStdDev;
         const min = theoreticalMean - range;
@@ -539,15 +578,42 @@ function generateNormalSample(mean, stdDev) {
 
 // Generate random samples from a uniform distribution
 function generateUniformSample(mean, stdDev) {
-    // For uniform distribution on [a,b], mean = (a+b)/2 and stdDev = (b-a)/sqrt(12)
-    // So b-a = sqrt(12) * stdDev
-    // And if mean = (a+b)/2, then a = mean - (b-a)/2 and b = mean + (b-a)/2
+    // For uniform distribution on [a,b]:
+    // mean = (a+b)/2 
+    // stdDev = (b-a)/sqrt(12)
+    
+    // Therefore:
+    // b-a = stdDev * sqrt(12)
+    // Since mean = (a+b)/2, we have:
+    // a = mean - (b-a)/2 = mean - stdDev*sqrt(12)/2
+    // b = mean + (b-a)/2 = mean + stdDev*sqrt(12)/2
     
     const range = Math.sqrt(12) * stdDev;
     const min = mean - range / 2;
     const max = mean + range / 2;
     
     return min + Math.random() * (max - min);
+}
+
+// Generate random samples from an exponential distribution
+function generateExponentialSample(mean, stdDev) {
+    // For exponential distribution with rate parameter λ:
+    // mean = 1/λ
+    // stdDev = 1/λ
+    // So λ = 1/mean
+    
+    // For exponential distribution, mean and standard deviation are equal (both 1/λ)
+    // But since we let users specify both independently, we will use mean to determine λ
+    // and note that the actual stdDev of the resulting data will be equal to mean
+    
+    const lambda = 1 / mean;
+    
+    // Generate a standard exponential random variable
+    // Using inverse transform sampling: F^(-1)(U) where U is uniform(0,1)
+    const u = Math.random();
+    const exponentialValue = -Math.log(1 - u) / lambda;
+    
+    return exponentialValue;
 }
 
 // Generate a sample based on the selected distribution type
@@ -558,6 +624,8 @@ function generateSample(mean, stdDev) {
         return generateNormalSample(mean, stdDev);
     } else if (distributionType === 'uniform') {
         return generateUniformSample(mean, stdDev);
+    } else if (distributionType === 'exponential') {
+        return generateExponentialSample(mean, stdDev);
     }
     
     // Default to normal
@@ -631,7 +699,7 @@ function normalPDF(x, mean, stdDev) {
 
 // Calculate uniform distribution PDF values
 function uniformPDF(x, mean, stdDev) {
-    // For uniform distribution on [a,b]
+    // For uniform distribution on [a,b]:
     const range = Math.sqrt(12) * stdDev;
     const min = mean - range / 2;
     const max = mean + range / 2;
@@ -639,6 +707,20 @@ function uniformPDF(x, mean, stdDev) {
     // PDF is 1/(b-a) if x is in [a,b], and 0 otherwise
     if (x >= min && x <= max) {
         return 1 / range;
+    } else {
+        return 0;
+    }
+}
+
+// Calculate exponential distribution PDF values
+function exponentialPDF(x, mean, stdDev) {
+    // For exponential distribution with rate parameter λ:
+    // mean = 1/λ, so λ = 1/mean
+    const lambda = 1 / mean;
+    
+    // PDF is f(x) = λ * e^(-λx) for x ≥ 0, and 0 otherwise
+    if (x >= 0) {
+        return lambda * Math.exp(-lambda * x);
     } else {
         return 0;
     }
@@ -652,6 +734,8 @@ function generatePopulationData(distributionType, mean, stdDev, numPoints = 1000
             data.push(generateNormalSample(mean, stdDev));
         } else if (distributionType === 'uniform') {
             data.push(generateUniformSample(mean, stdDev));
+        } else if (distributionType === 'exponential') {
+            data.push(generateExponentialSample(mean, stdDev));
         }
     }
     return data;
@@ -686,8 +770,30 @@ function runSimulation() {
     const histogram = createHistogramBins(sampleMeans, numBins);
     
     // Calculate normal distribution curve points
+    // The theoretical mean is still the population mean for all distributions due to CLT
     const theoreticalMean = populationMean;
-    const theoreticalStdDev = populationSD / Math.sqrt(sampleSize);
+    
+    // Compute the theoretical standard error based on the distribution type
+    // According to CLT, the standard error is σ/√n where σ is the population standard deviation
+    let theoreticalStdDev;
+    
+    if (distributionType === 'exponential') {
+        // For exponential distribution with parameter λ:
+        // Population mean = 1/λ
+        // Population variance = 1/λ²
+        // Population SD = 1/λ = mean
+        // Therefore standard error = mean/√n
+        theoreticalStdDev = populationMean / Math.sqrt(sampleSize);
+    } else if (distributionType === 'uniform') {
+        // For uniform distribution on [a,b]:
+        // Population SD = (b-a)/√12 = populationSD
+        // Standard error = populationSD/√n
+        theoreticalStdDev = populationSD / Math.sqrt(sampleSize);
+    } else {
+        // For normal distribution:
+        // Standard error is simply populationSD/√n
+        theoreticalStdDev = populationSD / Math.sqrt(sampleSize);
+    }
     
     const range = 4 * theoreticalStdDev;
     const min = theoreticalMean - range;
@@ -727,9 +833,20 @@ function updatePopulationChart(populationData, populationMean, populationSD, dis
     }));
     
     // Calculate theoretical PDF curve points
-    const range = 4 * populationSD;
-    const min = populationMean - range;
-    const max = populationMean + range;
+    // Adjust range based on distribution type
+    let range, min, max;
+    
+    if (distributionType === 'exponential') {
+        // For exponential, extend the range to show the tail
+        range = 3 * populationMean;
+        min = 0; // Exponential starts at 0
+        max = range;
+    } else {
+        range = 4 * populationSD;
+        min = populationMean - range;
+        max = populationMean + range;
+    }
+    
     const step = range / 100;
     
     const pdfCurvePoints = [];
@@ -739,6 +856,8 @@ function updatePopulationChart(populationData, populationMean, populationSD, dis
             y = normalPDF(x, populationMean, populationSD);
         } else if (distributionType === 'uniform') {
             y = uniformPDF(x, populationMean, populationSD);
+        } else if (distributionType === 'exponential') {
+            y = exponentialPDF(x, populationMean, populationSD);
         } else {
             y = normalPDF(x, populationMean, populationSD);
         }
@@ -758,6 +877,9 @@ function updatePopulationChart(populationData, populationMean, populationSD, dis
     } else if (distributionType === 'uniform') {
         title = 'Uniform Population Distribution';
         curveLabel = 'Uniform Distribution';
+    } else if (distributionType === 'exponential') {
+        title = 'Exponential Population Distribution (Skewed)';
+        curveLabel = 'Exponential Distribution';
     }
     
     // Define colors
@@ -800,7 +922,9 @@ function updatePopulationChart(populationData, populationMean, populationSD, dis
                     title: {
                         display: true,
                         text: 'Value'
-                    }
+                    },
+                    // Force minimum to 0 for exponential distribution
+                    min: distributionType === 'exponential' ? 0 : undefined
                 },
                 y: {
                     title: {
@@ -847,6 +971,8 @@ function updateHistogramChart(histogram, curvePoints, populationMean, population
     if (distributionType === 'normal') {
         subtitle = `Sample Size (n) = ${sampleSize}`;
     } else if (distributionType === 'uniform') {
+        subtitle = `Sample Size (n) = ${sampleSize} ${sampleSize >= 30 ? '(n ≥ 30 ✓)' : '(n < 30 ⚠️)'}`;
+    } else if (distributionType === 'exponential') {
         subtitle = `Sample Size (n) = ${sampleSize} ${sampleSize >= 30 ? '(n ≥ 30 ✓)' : '(n < 30 ⚠️)'}`;
     }
     
