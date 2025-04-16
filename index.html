@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sampling Distribution of Mean</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Sampling Distribution of the Mean</h1>
+        
+        <div class="context-selector">
+            <h2>Select Population Context</h2>
+            <select id="population-context">
+                <option value="test-scores">Test Scores (0-100 points)</option>
+                <option value="heights">Student Heights (cm)</option>
+                <option value="weights">Product Weights (grams)</option>
+                <option value="times">Response Times (milliseconds)</option>
+                <option value="custom">Custom Values</option>
+            </select>
+            <p id="population-description">We are studying a population of student test scores, which are normally distributed.</p>
+        </div>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label for="population-mean">Population Mean (μ):</label>
+                <input type="number" id="population-mean" value="50" min="0" max="100">
+                <span class="units" id="mean-units">points</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="population-sd">Population Standard Deviation (σ):</label>
+                <input type="number" id="population-sd" value="15" min="1" max="30">
+                <span class="units" id="sd-units">points</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="sample-size">Sample Size (n):</label>
+                <input type="number" id="sample-size" value="30" min="1" max="100">
+                <span class="help-text">Number of individuals in each sample</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="num-samples">Number of Repeated Samples:</label>
+                <input type="range" id="num-samples" value="100" min="10" max="10000" step="10">
+                <span id="num-samples-value">100</span>
+                <span class="help-text">How many times we repeat the sampling process</span>
+            </div>
+            
+            <button id="run-simulation">Run Simulation</button>
+        </div>
+        
+        <div class="charts">
+            <div class="chart-container">
+                <h2>Sample Means Histogram</h2>
+                <canvas id="histogram-chart"></canvas>
+            </div>
+        </div>
+        
+        <div class="explanation">
+            <h2>Explanation</h2>
+            <p>This simulation demonstrates the <strong>Central Limit Theorem (CLT)</strong> using <span id="context-description">test scores</span>.</p>
+            
+            <div class="sampling-process">
+                <h3>The Sampling Process:</h3>
+                <ol>
+                    <li>We start with a population of <span id="variable-description">test scores</span> with mean μ and standard deviation σ.</li>
+                    <li>We randomly select <span id="sample-size-text">30</span> individuals from this population.</li>
+                    <li>We calculate the mean of this sample.</li>
+                    <li>We repeat this process <span id="num-samples-text">100</span> times.</li>
+                    <li>The histogram shows the distribution of these sample means.</li>
+                </ol>
+            </div>
+            
+            <p>Key observations:</p>
+            <ul>
+                <li>The histogram shows the distribution of sample means.</li>
+                <li>The red curve represents the theoretical normal distribution.</li>
+                <li>As you increase the number of repeated samples, the histogram more closely matches the normal curve.</li>
+                <li>The mean of the sample means (x̄) approaches the population mean (μ).</li>
+                <li>The standard deviation of the sample means approaches σ/√n.</li>
+            </ul>
+            <div id="stats">
+                <p>Population Mean (μ): <span id="pop-mean-value">50</span> <span id="stats-mean-units">points</span></p>
+                <p>Population Standard Deviation (σ): <span id="pop-sd-value">15</span> <span id="stats-sd-units">points</span></p>
+                <p>Sample Size (n): <span id="sample-size-value">30</span> individuals</p>
+                <p>Expected Standard Error (σ/√n): <span id="expected-se">2.74</span> <span id="stats-se-units">points</span></p>
+                <p>Observed Mean of Sample Means: <span id="observed-mean">--</span> <span id="stats-observed-mean-units">points</span></p>
+                <p>Observed Standard Error: <span id="observed-se">--</span> <span id="stats-observed-se-units">points</span></p>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html> 
