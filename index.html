@@ -6,6 +6,7 @@
     <title>Sampling Distribution of Mean</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
     <div class="container">
@@ -20,10 +21,19 @@
                 <option value="times">Response Times (milliseconds)</option>
                 <option value="custom">Custom Values</option>
             </select>
-            <p id="population-description">We are studying a population of student test scores, which are normally distributed.</p>
+            <p id="population-description">We are studying a population of student test scores.</p>
         </div>
         
         <div class="controls">
+            <div class="control-group">
+                <label for="distribution-type">Distribution Type:</label>
+                <select id="distribution-type">
+                    <option value="normal">Normal Distribution</option>
+                    <option value="uniform">Uniform Distribution (non-normal)</option>
+                </select>
+                <span class="help-text">Select the type of population distribution</span>
+            </div>
+            
             <div class="control-group">
                 <label for="population-mean">Population Mean (μ):</label>
                 <input type="number" id="population-mean" value="50" min="0" max="100">
@@ -52,10 +62,69 @@
             <button id="run-simulation">Run Simulation</button>
         </div>
         
+        <!-- New Statistics Panel -->
+        <div class="stats-box">
+            <div class="stats-column">
+                <h3>Population Stats</h3>
+                <div class="stat-item">
+                    <div class="stat-label">Population Mean (μ):</div>
+                    <div class="stat-value"><span id="pop-mean-value">50</span> <span id="stats-mean-units">points</span></div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Population Standard Deviation (σ):</div>
+                    <div class="stat-value"><span id="pop-sd-value">15</span> <span id="stats-sd-units">points</span></div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Sample Size (n):</div>
+                    <div class="stat-value"><span id="sample-size-value">30</span></div>
+                </div>
+            </div>
+            
+            <div class="stats-column">
+                <h3>Theoretical Values</h3>
+                <div class="stat-item theoretical">
+                    <div class="stat-label">Mean of Sample Means:</div>
+                    <div class="stat-value">μₓ̄ = μ = <span id="theoretical-mean">50</span> <span id="theoretical-mean-units">points</span></div>
+                </div>
+                <div class="stat-item theoretical">
+                    <div class="stat-label">Standard Error of Means:</div>
+                    <div class="stat-value">σₓ̄ = σ/√n = <span id="expected-se">2.74</span> <span id="stats-se-units">points</span></div>
+                </div>
+            </div>
+            
+            <div class="stats-column">
+                <h3>Observed Results</h3>
+                <div class="stat-item observed">
+                    <div class="stat-label">Observed Mean of Sample Means:</div>
+                    <div class="stat-value">x̄ = <span id="observed-mean">--</span> <span id="stats-observed-mean-units">points</span></div>
+                </div>
+                <div class="stat-item observed">
+                    <div class="stat-label">Observed Standard Error:</div>
+                    <div class="stat-value">s = <span id="observed-se">--</span> <span id="stats-observed-se-units">points</span></div>
+                </div>
+            </div>
+        </div>
+        
         <div class="charts">
-            <div class="chart-container">
-                <h2>Sample Means Histogram</h2>
-                <canvas id="histogram-chart"></canvas>
+            <div class="chart-row">
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h2>Population Distribution</h2>
+                        <button class="fullscreen-btn" data-chart="population">
+                            <i class="fas fa-expand-arrows-alt"></i>
+                        </button>
+                    </div>
+                    <canvas id="population-chart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h2>Sampling Distribution of the Mean</h2>
+                        <button class="fullscreen-btn" data-chart="histogram">
+                            <i class="fas fa-expand-arrows-alt"></i>
+                        </button>
+                    </div>
+                    <canvas id="histogram-chart"></canvas>
+                </div>
             </div>
         </div>
         
@@ -81,17 +150,22 @@
                 <li>As you increase the number of repeated samples, the histogram more closely matches the normal curve.</li>
                 <li>The mean of the sample means (x̄) approaches the population mean (μ).</li>
                 <li>The standard deviation of the sample means approaches σ/√n.</li>
+                <li><strong>For non-normal distributions:</strong> The sampling distribution approaches normality as sample size increases, especially when n ≥ 30.</li>
             </ul>
-            <div id="stats">
-                <p>Population Mean (μ): <span id="pop-mean-value">50</span> <span id="stats-mean-units">points</span></p>
-                <p>Population Standard Deviation (σ): <span id="pop-sd-value">15</span> <span id="stats-sd-units">points</span></p>
-                <p>Sample Size (n): <span id="sample-size-value">30</span> individuals</p>
-                <p>Expected Standard Error (σ/√n): <span id="expected-se">2.74</span> <span id="stats-se-units">points</span></p>
-                <p>Observed Mean of Sample Means: <span id="observed-mean">--</span> <span id="stats-observed-mean-units">points</span></p>
-                <p>Observed Standard Error: <span id="observed-se">--</span> <span id="stats-observed-se-units">points</span></p>
+        </div>
+    </div>
+    
+    <!-- Fullscreen Modal -->
+    <div id="fullscreen-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2 id="modal-title">Chart Fullscreen View</h2>
+            <div class="fullscreen-chart-container">
+                <canvas id="fullscreen-chart"></canvas>
             </div>
         </div>
     </div>
+    
     <script src="script.js"></script>
 </body>
 </html> 

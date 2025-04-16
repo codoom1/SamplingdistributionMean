@@ -6,8 +6,15 @@ const numSamplesInput = document.getElementById('num-samples');
 const numSamplesValue = document.getElementById('num-samples-value');
 const populationContextSelect = document.getElementById('population-context');
 const populationDescription = document.getElementById('population-description');
+const distributionTypeSelect = document.getElementById('distribution-type');
 const runSimulationBtn = document.getElementById('run-simulation');
 const histogramChart = document.getElementById('histogram-chart');
+const populationChart = document.getElementById('population-chart');
+const fullscreenChart = document.getElementById('fullscreen-chart');
+const fullscreenModal = document.getElementById('fullscreen-modal');
+const closeModal = document.querySelector('.close-modal');
+const modalTitle = document.getElementById('modal-title');
+const fullscreenButtons = document.querySelectorAll('.fullscreen-btn');
 
 // Context-related elements
 const contextDescription = document.getElementById('context-description');
@@ -29,9 +36,358 @@ const sampleSizeValue = document.getElementById('sample-size-value');
 const expectedSE = document.getElementById('expected-se');
 const observedMean = document.getElementById('observed-mean');
 const observedSE = document.getElementById('observed-se');
+const theoreticalMeanValue = document.getElementById('theoretical-mean');
+const theoreticalMeanUnits = document.getElementById('theoretical-mean-units');
 
 // Chart instances
 let histogramChartInstance;
+let populationChartInstance;
+let fullscreenChartInstance;
+let currentFullscreenChartType = '';
+
+// Fullscreen Mode Functionality
+fullscreenButtons.forEach(button => {
+    button.addEventListener('click', () => {
+        const chartType = button.getAttribute('data-chart');
+        openFullscreenChart(chartType);
+    });
+});
+
+closeModal.addEventListener('click', closeFullscreenChart);
+
+// Close modal when clicking outside the content
+window.addEventListener('click', (event) => {
+    if (event.target === fullscreenModal) {
+        closeFullscreenChart();
+    }
+});
+
+// Handle ESC key to close modal
+window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && fullscreenModal.style.display === 'block') {
+        closeFullscreenChart();
+    }
+});
+
+function openFullscreenChart(chartType) {
+    currentFullscreenChartType = chartType;
+    
+    // Set the title based on chart type
+    if (chartType === 'population') {
+        modalTitle.textContent = 'Population Distribution - Fullscreen View';
+    } else if (chartType === 'histogram') {
+        modalTitle.textContent = 'Sampling Distribution of the Mean - Fullscreen View';
+    }
+    
+    // Display the modal
+    fullscreenModal.style.display = 'block';
+    
+    // Clone the chart for fullscreen view
+    recreateFullscreenChart();
+}
+
+function closeFullscreenChart() {
+    fullscreenModal.style.display = 'none';
+    
+    // Destroy the fullscreen chart instance
+    if (fullscreenChartInstance) {
+        fullscreenChartInstance.destroy();
+        fullscreenChartInstance = null;
+    }
+}
+
+function recreateFullscreenChart() {
+    // Destroy existing chart if any
+    if (fullscreenChartInstance) {
+        fullscreenChartInstance.destroy();
+    }
+    
+    const populationMean = parseFloat(populationMeanInput.value);
+    const populationSD = parseFloat(populationSDInput.value);
+    const sampleSize = parseInt(sampleSizeInput.value);
+    const distributionType = distributionTypeSelect.value;
+    
+    if (currentFullscreenChartType === 'population') {
+        // Clone population chart
+        const populationData = generatePopulationData(distributionType, populationMean, populationSD, 20000);
+        
+        // Create population chart in fullscreen
+        const populationHistogram = createHistogramBins(populationData, 50);
+        const histogramData = populationHistogram.binCenters.map((center, i) => ({
+            x: center,
+            y: populationHistogram.bins[i]
+        }));
+        
+        // Calculate theoretical PDF curve points
+        const range = 4 * populationSD;
+        const min = populationMean - range;
+        const max = populationMean + range;
+        const step = range / 200;
+        
+        const pdfCurvePoints = [];
+        for (let x = min; x <= max; x += step) {
+            let y;
+            if (distributionType === 'normal') {
+                y = normalPDF(x, populationMean, populationSD);
+            } else if (distributionType === 'uniform') {
+                y = uniformPDF(x, populationMean, populationSD);
+            } else {
+                y = normalPDF(x, populationMean, populationSD);
+            }
+            
+            pdfCurvePoints.push({
+                x: x,
+                y: y
+            });
+        }
+        
+        // Set chart title based on distribution type
+        let title = '';
+        let curveLabel = '';
+        if (distributionType === 'normal') {
+            title = 'Normal Population Distribution';
+            curveLabel = 'Normal Distribution';
+        } else if (distributionType === 'uniform') {
+            title = 'Uniform Population Distribution';
+            curveLabel = 'Uniform Distribution';
+        }
+        
+        // Define colors
+        const histogramColor = 'rgba(75, 192, 192, 0.5)';
+        const histogramBorderColor = 'rgba(75, 192, 192, 1)';
+        const curveColor = 'rgba(153, 102, 255, 1)';
+        
+        fullscreenChartInstance = new Chart(fullscreenChart, {
+            type: 'scatter',
+            data: {
+                datasets: [
+                    {
+                        label: 'Population Data',
+                        data: histogramData,
+                        type: 'bar',
+                        backgroundColor: histogramColor,
+                        borderColor: histogramBorderColor,
+                        borderWidth: 1,
+                        barPercentage: 1.0,
+                        categoryPercentage: 1.0
+                    },
+                    {
+                        label: curveLabel,
+                        data: pdfCurvePoints,
+                        type: 'line',
+                        borderColor: curveColor,
+                        borderWidth: 2,
+                        fill: false,
+                        pointRadius: 0,
+                        tension: 0.4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        type: 'linear',
+                        title: {
+                            display: true,
+                            text: 'Value',
+                            font: {
+                                size: 16
+                            }
+                        },
+                        ticks: {
+                            font: {
+                                size: 14
+                            }
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Density',
+                            font: {
+                                size: 16
+                            }
+                        },
+                        beginAtZero: true,
+                        ticks: {
+                            font: {
+                                size: 14
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            title: function(tooltipItems) {
+                                return `Value: ${tooltipItems[0].parsed.x.toFixed(2)}`;
+                            }
+                        },
+                        titleFont: {
+                            size: 16
+                        },
+                        bodyFont: {
+                            size: 14
+                        }
+                    },
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            font: {
+                                size: 14
+                            }
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: title,
+                        font: {
+                            size: 18
+                        }
+                    }
+                }
+            }
+        });
+    } else if (currentFullscreenChartType === 'histogram') {
+        // Generate sample means with more samples for better visualization
+        const numSamples = 5000; // Use more samples for better visualization in fullscreen
+        const sampleMeans = generateSampleMeans(populationMean, populationSD, sampleSize, numSamples);
+        
+        // Calculate statistics
+        const { mean, stdDev } = calculateSampleMeanStats(sampleMeans);
+        
+        // Create histogram bins with more bins for detail
+        const numBins = Math.min(80, Math.ceil(Math.sqrt(numSamples)));
+        const histogram = createHistogramBins(sampleMeans, numBins);
+        
+        // Calculate normal distribution curve points
+        const theoreticalMean = populationMean;
+        const theoreticalStdDev = populationSD / Math.sqrt(sampleSize);
+        
+        const range = 4 * theoreticalStdDev;
+        const min = theoreticalMean - range;
+        const max = theoreticalMean + range;
+        const step = range / 200;
+        
+        const curvePoints = [];
+        for (let x = min; x <= max; x += step) {
+            curvePoints.push({
+                x: x,
+                y: normalPDF(x, theoreticalMean, theoreticalStdDev)
+            });
+        }
+        
+        // Create proper datasets for Chart.js
+        const histogramData = histogram.binCenters.map((center, i) => ({
+            x: center,
+            y: histogram.bins[i]
+        }));
+        
+        // Create chart subtitle based on distribution type
+        let subtitle = '';
+        if (distributionType === 'normal') {
+            subtitle = `Sample Size (n) = ${sampleSize}`;
+        } else if (distributionType === 'uniform') {
+            subtitle = `Sample Size (n) = ${sampleSize} ${sampleSize >= 30 ? '(n ≥ 30 ✓)' : '(n < 30 ⚠️)'}`;
+        }
+        
+        fullscreenChartInstance = new Chart(fullscreenChart, {
+            type: 'scatter',
+            data: {
+                datasets: [
+                    {
+                        label: 'Sample Means Frequency',
+                        data: histogramData,
+                        type: 'bar',
+                        backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1,
+                        barPercentage: 1.0,
+                        categoryPercentage: 1.0
+                    },
+                    {
+                        label: 'Normal Distribution',
+                        data: curvePoints,
+                        type: 'line',
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 2,
+                        fill: false,
+                        pointRadius: 0,
+                        tension: 0.4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        type: 'linear',
+                        title: {
+                            display: true,
+                            text: 'Sample Mean Value',
+                            font: {
+                                size: 16
+                            }
+                        },
+                        ticks: {
+                            font: {
+                                size: 14
+                            }
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Density',
+                            font: {
+                                size: 16
+                            }
+                        },
+                        beginAtZero: true,
+                        ticks: {
+                            font: {
+                                size: 14
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            title: function(tooltipItems) {
+                                return `Mean: ${tooltipItems[0].parsed.x.toFixed(2)}`;
+                            }
+                        },
+                        titleFont: {
+                            size: 16
+                        },
+                        bodyFont: {
+                            size: 14
+                        }
+                    },
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            font: {
+                                size: 14
+                            }
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: ['Sampling Distribution of the Mean', subtitle],
+                        font: {
+                            size: 18
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
 
 // Update displayed values
 numSamplesInput.addEventListener('input', () => {
@@ -46,6 +402,7 @@ sampleSizeInput.addEventListener('input', () => {
 
 populationMeanInput.addEventListener('input', updateStatistics);
 populationSDInput.addEventListener('input', updateStatistics);
+distributionTypeSelect.addEventListener('change', runSimulation);
 
 // Handle context change
 populationContextSelect.addEventListener('change', updateContext);
@@ -67,6 +424,7 @@ function updateContext() {
     statsSEUnits.textContent = context.units;
     statsObservedMeanUnits.textContent = context.units;
     statsObservedSEUnits.textContent = context.units;
+    theoreticalMeanUnits.textContent = context.units;
     
     // Update input ranges
     populationMeanInput.min = context.minMean;
@@ -87,7 +445,7 @@ function updateContext() {
 // Context definitions
 const contexts = {
     'test-scores': {
-        description: 'We are studying a population of student test scores, which are normally distributed.',
+        description: 'We are studying a population of student test scores.',
         variable: 'test scores',
         units: 'points',
         defaultMean: 50,
@@ -98,7 +456,7 @@ const contexts = {
         maxSD: 30
     },
     'heights': {
-        description: 'We are studying a population of student heights, which are normally distributed.',
+        description: 'We are studying a population of student heights.',
         variable: 'heights',
         units: 'cm',
         defaultMean: 170,
@@ -109,7 +467,7 @@ const contexts = {
         maxSD: 30
     },
     'weights': {
-        description: 'We are studying a population of product weights, which are normally distributed.',
+        description: 'We are studying a population of product weights.',
         variable: 'weights',
         units: 'grams',
         defaultMean: 500,
@@ -120,7 +478,7 @@ const contexts = {
         maxSD: 100
     },
     'times': {
-        description: 'We are studying a population of response times, which are normally distributed.',
+        description: 'We are studying a population of response times.',
         variable: 'response times',
         units: 'ms',
         defaultMean: 350,
@@ -131,7 +489,7 @@ const contexts = {
         maxSD: 200
     },
     'custom': {
-        description: 'You are studying a custom population with a normal distribution.',
+        description: 'You are studying a custom population.',
         variable: 'values',
         units: 'units',
         defaultMean: 50,
@@ -162,6 +520,7 @@ function updateStatistics() {
     popMeanValue.textContent = populationMean;
     popSDValue.textContent = populationSD;
     sampleSizeValue.textContent = sampleSize;
+    theoreticalMeanValue.textContent = populationMean;
     
     // Calculate and display expected standard error
     const theoreticalSE = populationSD / Math.sqrt(sampleSize);
@@ -178,11 +537,38 @@ function generateNormalSample(mean, stdDev) {
     return z * stdDev + mean;
 }
 
+// Generate random samples from a uniform distribution
+function generateUniformSample(mean, stdDev) {
+    // For uniform distribution on [a,b], mean = (a+b)/2 and stdDev = (b-a)/sqrt(12)
+    // So b-a = sqrt(12) * stdDev
+    // And if mean = (a+b)/2, then a = mean - (b-a)/2 and b = mean + (b-a)/2
+    
+    const range = Math.sqrt(12) * stdDev;
+    const min = mean - range / 2;
+    const max = mean + range / 2;
+    
+    return min + Math.random() * (max - min);
+}
+
+// Generate a sample based on the selected distribution type
+function generateSample(mean, stdDev) {
+    const distributionType = distributionTypeSelect.value;
+    
+    if (distributionType === 'normal') {
+        return generateNormalSample(mean, stdDev);
+    } else if (distributionType === 'uniform') {
+        return generateUniformSample(mean, stdDev);
+    }
+    
+    // Default to normal
+    return generateNormalSample(mean, stdDev);
+}
+
 // Generate a single sample of size n and calculate its mean
 function generateSampleMean(populationMean, populationSD, sampleSize) {
     let sum = 0;
     for (let i = 0; i < sampleSize; i++) {
-        sum += generateNormalSample(populationMean, populationSD);
+        sum += generateSample(populationMean, populationSD);
     }
     return sum / sampleSize;
 }
@@ -243,12 +629,47 @@ function normalPDF(x, mean, stdDev) {
            Math.exp(-0.5 * Math.pow((x - mean) / stdDev, 2));
 }
 
+// Calculate uniform distribution PDF values
+function uniformPDF(x, mean, stdDev) {
+    // For uniform distribution on [a,b]
+    const range = Math.sqrt(12) * stdDev;
+    const min = mean - range / 2;
+    const max = mean + range / 2;
+    
+    // PDF is 1/(b-a) if x is in [a,b], and 0 otherwise
+    if (x >= min && x <= max) {
+        return 1 / range;
+    } else {
+        return 0;
+    }
+}
+
+// Generate population data for visualization
+function generatePopulationData(distributionType, mean, stdDev, numPoints = 10000) {
+    const data = [];
+    for (let i = 0; i < numPoints; i++) {
+        if (distributionType === 'normal') {
+            data.push(generateNormalSample(mean, stdDev));
+        } else if (distributionType === 'uniform') {
+            data.push(generateUniformSample(mean, stdDev));
+        }
+    }
+    return data;
+}
+
 // Run the simulation
 function runSimulation() {
     const populationMean = parseFloat(populationMeanInput.value);
     const populationSD = parseFloat(populationSDInput.value);
     const sampleSize = parseInt(sampleSizeInput.value);
     const numSamples = parseInt(numSamplesInput.value);
+    const distributionType = distributionTypeSelect.value;
+    
+    // Generate population data for visualization
+    const populationData = generatePopulationData(distributionType, populationMean, populationSD, 10000);
+    
+    // Update population distribution chart
+    updatePopulationChart(populationData, populationMean, populationSD, distributionType);
     
     // Generate sample means
     const sampleMeans = generateSampleMeans(populationMean, populationSD, sampleSize, numSamples);
@@ -282,11 +703,135 @@ function runSimulation() {
     }
     
     // Create or update the histogram chart
-    updateHistogramChart(histogram, curvePoints, populationMean, populationSD, sampleSize, mean, stdDev);
+    updateHistogramChart(histogram, curvePoints, populationMean, populationSD, sampleSize, mean, stdDev, distributionType);
+    
+    // If we have a fullscreen chart open, update it as well
+    if (fullscreenChartInstance && fullscreenModal.style.display === 'block') {
+        recreateFullscreenChart();
+    }
+}
+
+// Update population distribution chart
+function updatePopulationChart(populationData, populationMean, populationSD, distributionType) {
+    if (populationChartInstance) {
+        populationChartInstance.destroy();
+    }
+    
+    // Create histogram bins for population data
+    const populationHistogram = createHistogramBins(populationData, 30);
+    
+    // Create proper datasets for Chart.js
+    const histogramData = populationHistogram.binCenters.map((center, i) => ({
+        x: center,
+        y: populationHistogram.bins[i]
+    }));
+    
+    // Calculate theoretical PDF curve points
+    const range = 4 * populationSD;
+    const min = populationMean - range;
+    const max = populationMean + range;
+    const step = range / 100;
+    
+    const pdfCurvePoints = [];
+    for (let x = min; x <= max; x += step) {
+        let y;
+        if (distributionType === 'normal') {
+            y = normalPDF(x, populationMean, populationSD);
+        } else if (distributionType === 'uniform') {
+            y = uniformPDF(x, populationMean, populationSD);
+        } else {
+            y = normalPDF(x, populationMean, populationSD);
+        }
+        
+        pdfCurvePoints.push({
+            x: x,
+            y: y
+        });
+    }
+    
+    // Set chart title based on distribution type
+    let title = '';
+    let curveLabel = '';
+    if (distributionType === 'normal') {
+        title = 'Normal Population Distribution';
+        curveLabel = 'Normal Distribution';
+    } else if (distributionType === 'uniform') {
+        title = 'Uniform Population Distribution';
+        curveLabel = 'Uniform Distribution';
+    }
+    
+    // Define colors
+    const histogramColor = 'rgba(75, 192, 192, 0.5)';
+    const histogramBorderColor = 'rgba(75, 192, 192, 1)';
+    const curveColor = 'rgba(153, 102, 255, 1)';
+    
+    populationChartInstance = new Chart(populationChart, {
+        type: 'scatter',
+        data: {
+            datasets: [
+                {
+                    label: 'Population Data',
+                    data: histogramData,
+                    type: 'bar',
+                    backgroundColor: histogramColor,
+                    borderColor: histogramBorderColor,
+                    borderWidth: 1,
+                    barPercentage: 1.0,
+                    categoryPercentage: 1.0
+                },
+                {
+                    label: curveLabel,
+                    data: pdfCurvePoints,
+                    type: 'line',
+                    borderColor: curveColor,
+                    borderWidth: 2,
+                    fill: false,
+                    pointRadius: 0,
+                    tension: 0.4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    type: 'linear',
+                    title: {
+                        display: true,
+                        text: 'Value'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Density'
+                    },
+                    beginAtZero: true
+                }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        title: function(tooltipItems) {
+                            return `Value: ${tooltipItems[0].parsed.x.toFixed(2)}`;
+                        }
+                    }
+                },
+                legend: {
+                    position: 'top'
+                },
+                title: {
+                    display: true,
+                    text: title
+                }
+            }
+        }
+    });
 }
 
 // Update histogram chart
-function updateHistogramChart(histogram, curvePoints, populationMean, populationSD, sampleSize, observedMean, observedStdDev) {
+function updateHistogramChart(histogram, curvePoints, populationMean, populationSD, sampleSize, observedMean, observedStdDev, distributionType) {
     if (histogramChartInstance) {
         histogramChartInstance.destroy();
     }
@@ -297,19 +842,13 @@ function updateHistogramChart(histogram, curvePoints, populationMean, population
         y: histogram.bins[i]
     }));
     
-    // Get context for drawing formula
-    const ctx = histogramChart.getContext('2d');
-    const units = meanUnits.textContent || '';
-    
-    // Formula text values - include both theoretical and observed
-    const meanFormula = `μₓ̄ = μ = ${populationMean} ${units}`;
-    const sdFormula = `σₓ̄ = σ/√n = ${(populationSD / Math.sqrt(sampleSize)).toFixed(2)} ${units}`;
-    const observedMeanText = `Observed x̄ = ${observedMean.toFixed(2)} ${units}`;
-    const observedSdText = `Observed s = ${observedStdDev.toFixed(2)} ${units}`;
-    
-    // Define colors for formulas
-    const theoreticalColor = 'rgb(220, 53, 69)'; // Red (matches the curve)
-    const observedColor = 'rgb(0, 123, 255)';    // Blue (matches the histogram)
+    // Create chart subtitle based on distribution type
+    let subtitle = '';
+    if (distributionType === 'normal') {
+        subtitle = `Sample Size (n) = ${sampleSize}`;
+    } else if (distributionType === 'uniform') {
+        subtitle = `Sample Size (n) = ${sampleSize} ${sampleSize >= 30 ? '(n ≥ 30 ✓)' : '(n < 30 ⚠️)'}`;
+    }
     
     histogramChartInstance = new Chart(histogramChart, {
         type: 'scatter',
@@ -369,50 +908,13 @@ function updateHistogramChart(histogram, curvePoints, populationMean, population
                 },
                 title: {
                     display: true,
-                    text: 'Sampling Distribution of the Mean'
+                    text: ['Sampling Distribution of the Mean', subtitle],
+                    font: {
+                        size: 14
+                    }
                 }
             }
-        },
-        plugins: [{
-            id: 'customFormulas',
-            afterDraw: function(chart) {
-                const ctx = chart.ctx;
-                const chartArea = chart.chartArea;
-                
-                // Create a semi-transparent background for the formulas
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-                ctx.fillRect(
-                    chartArea.right - 280, 
-                    chartArea.top + 10, 
-                    270, 
-                    140
-                );
-                
-                // Set font style - bigger size
-                ctx.font = 'bold 18px Arial';
-                ctx.textAlign = 'left';
-                
-                // Calculate position for text (right side)
-                const xPos = chartArea.right - 260;
-                let yPos = chartArea.top + 40;
-                const lineHeight = 30;
-                
-                // Draw theoretical formulas in red
-                ctx.fillStyle = theoreticalColor;
-                ctx.fillText(meanFormula, xPos, yPos);
-                yPos += lineHeight;
-                ctx.fillText(sdFormula, xPos, yPos);
-                
-                // Add a small gap
-                yPos += lineHeight/2;
-                
-                // Draw observed values in blue
-                ctx.fillStyle = observedColor;
-                ctx.fillText(observedMeanText, xPos, yPos + lineHeight/2);
-                yPos += lineHeight;
-                ctx.fillText(observedSdText, xPos, yPos + lineHeight/2);
-            }
-        }]
+        }
     });
 }
 
